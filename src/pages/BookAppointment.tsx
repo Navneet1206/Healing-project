@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabaseClient';
 import { BookAppointmentFormData, Professional } from '../types';
 import { Calendar, Clock, CreditCard, User } from 'lucide-react';
+import { getProfessionals } from '../services/professionalService';
+import { getAvailability } from '../services/availabilityService';
+import { createAppointment } from '../services/appointmentService';
 
 const BookAppointment: React.FC = () => {
   const { user } = useAuth();
@@ -25,16 +27,11 @@ const BookAppointment: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        const { data, error } = await supabase
-          .from('professionals')
-          .select('*');
-          
-        if (error) throw error;
-        
-        setProfessionals(data as Professional[]);
+        const data = await getProfessionals();
+        setProfessionals(data);
       } catch (err: any) {
         console.error('Error fetching professionals:', err);
-        setError(err.message || 'Failed to fetch professionals');
+        setError(err.response?.data?.error || 'Failed to fetch professionals');
       } finally {
         setLoading(false);
       }
@@ -55,58 +52,30 @@ const BookAppointment: React.FC = () => {
         const dayOfWeek = new Date(selectedDate).getDay();
         
         // Fetch the professional's availability for this day of week
-        const { data: availabilityData, error: availabilityError } = await supabase
-          .from('availability')
-          .select('*')
-          .eq('professional_id', selectedProfessionalId)
-          .eq('day_of_week', dayOfWeek)
-          .eq('is_available', true);
-          
-        if (availabilityError) throw availabilityError;
+        const availabilityData = await getAvailability(selectedProfessionalId);
+        const dayAvailability = availabilityData.filter(
+          (a: any) => a.dayOfWeek === dayOfWeek && a.isAvailable
+        );
         
-        // Fetch existing appointments for this professional on this date
-        const { data: appointmentsData, error: appointmentsError } = await supabase
-          .from('appointments')
-          .select('start_time, end_time')
-          .eq('professional_id', selectedProfessionalId)
-          .eq('date', selectedDate)
-          .not('status', 'eq', 'cancelled');
-          
-        if (appointmentsError) throw appointmentsError;
-        
-        // Generate available time slots based on availability and existing appointments
-        // This is a simplified version - in a real app, you would need more complex logic
+        // Generate available time slots based on availability
         const slots = [];
         
-        if (availabilityData && availabilityData.length > 0) {
-          const availability = availabilityData[0];
-          const startTime = new Date(`1970-01-01T${availability.start_time}`);
-          const endTime = new Date(`1970-01-01T${availability.end_time}`);
-          
-          // Generate 1-hour slots
-          const slotDuration = 60 * 60 * 1000; // 1 hour in milliseconds
-          
-          for (let time = startTime.getTime(); time < endTime.getTime(); time += slotDuration) {
-            const slotStart = new Date(time);
-            const slotEnd = new Date(time + slotDuration);
+        if (dayAvailability && dayAvailability.length > 0) {
+          for (const availability of dayAvailability) {
+            const startTime = new Date(`1970-01-01T${availability.startTime}`);
+            const endTime = new Date(`1970-01-01T${availability.endTime}`);
             
-            // Format times as HH:MM
-            const formattedStart = slotStart.toTimeString().substring(0, 5);
-            const formattedEnd = slotEnd.toTimeString().substring(0, 5);
+            // Generate 1-hour slots
+            const slotDuration = 60 * 60 * 1000; // 1 hour in milliseconds
             
-            // Check if this slot overlaps with any existing appointment
-            const isBooked = appointmentsData?.some(appointment => {
-              const apptStart = appointment.start_time;
-              const apptEnd = appointment.end_time;
+            for (let time = startTime.getTime(); time < endTime.getTime(); time += slotDuration) {
+              const slotStart = new Date(time);
+              const slotEnd = new Date(time + slotDuration);
               
-              return (
-                (formattedStart >= apptStart && formattedStart < apptEnd) ||
-                (formattedEnd > apptStart && formattedEnd <= apptEnd) ||
-                (formattedStart <= apptStart && formattedEnd >= apptEnd)
-              );
-            });
-            
-            if (!isBooked) {
+              // Format times as HH:MM
+              const formattedStart = slotStart.toTimeString().substring(0, 5);
+              const formattedEnd = slotEnd.toTimeString().substring(0, 5);
+              
               slots.push({
                 startTime: formattedStart,
                 endTime: formattedEnd
@@ -118,7 +87,7 @@ const BookAppointment: React.FC = () => {
         setAvailableSlots(slots);
       } catch (err: any) {
         console.error('Error fetching available slots:', err);
-        setError(err.message || 'Failed to fetch available slots');
+        setError(err.response?.data?.error || 'Failed to fetch available slots');
       } finally {
         setLoading(false);
       }
@@ -137,29 +106,19 @@ const BookAppointment: React.FC = () => {
       }
       
       // Create the appointment
-      const { data: appointmentData, error: appointmentError } = await supabase
-        .from('appointments')
-        .insert([
-          {
-            user_id: user.id,
-            professional_id: data.professionalId,
-            date: data.date,
-            start_time: data.startTime,
-            end_time: data.endTime,
-            notes: data.notes,
-            status: 'pending'
-          }
-        ])
-        .select();
-        
-      if (appointmentError) throw appointmentError;
+      await createAppointment({
+        professionalId: data.professionalId,
+        date: data.date,
+        startTime: data.startTime,
+        endTime: data.endTime,
+        notes: data.notes
+      });
       
-      // In a real app, you would redirect to payment page here
-      // For now, we'll just redirect to the dashboard
+      // Redirect to the dashboard
       navigate('/dashboard', { state: { appointmentCreated: true } });
     } catch (err: any) {
       console.error('Error booking appointment:', err);
-      setError(err.message || 'Failed to book appointment');
+      setError(err.response?.data?.error || 'Failed to book appointment');
     } finally {
       setLoading(false);
     }

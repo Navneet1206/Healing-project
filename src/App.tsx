@@ -1,113 +1,87 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './contexts/AuthContext';
-import ProtectedRoute from './components/ProtectedRoute';
-
-// Pages
-import Home from './pages/Home';
-import About from './pages/About';
-import Services from './pages/Services';
-import ServiceDetails from './pages/ServiceDetails';
-import Contact from './pages/Contact';
-import FAQ from './pages/FAQ';
-import Login from './pages/Login';
-import Register from './pages/Register';
-import Verify from './pages/Verify';
-import Dashboard from './pages/Dashboard';
-import Profile from './pages/Profile';
-import Professionals from './pages/Professionals';
-import BookAppointment from './pages/BookAppointment';
-import AppointmentDetails from './pages/AppointmentDetails';
-import ProfessionalDashboard from './pages/ProfessionalDashboard';
-import AdminDashboard from './pages/AdminDashboard';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
-import NotFound from './pages/NotFound';
-
-// Layout components
+import { Routes, Route, Navigate } from 'react-router-dom';
+import { useAuth } from './contexts/AuthContext';
 import Layout from './components/Layout';
-
+import ProtectedRoute from './components/ProtectedRoute';
+import UserRegister from './pages/UserRegister';
+import UserLogin from './pages/UserLogin';
+import ProfessionalRegister from './pages/ProfessionalRegister';
+import ProfessionalLogin from './pages/ProfessionalLogin';
+import Dashboard from './pages/Dashboard';
+import ProfessionalDashboard from './pages/ProfessionalDashboard';
+import Home from './pages/Home';
+import ServiceDetails from './pages/ServiceDetails';
+import FAQ from './pages/FAQ';
+import Contact from './pages/Contact';
+import Services from './pages/Services';
+import TermsOfService from './pages/TermsOfService';
+import PrivacyPolicy from './pages/PrivacyPolicy';
+import About from './pages/About';
+import AppointmentDetails from './pages/AppointmentDetails';
+import Verify from './pages/Verify';
+import BookAppointment from './pages/BookAppointment';
+import AdminDashboard from './pages/AdminDashboard';
+import Footer from './components/Footer';
 function App() {
+  const { loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+      </div>
+    );
+  }
+
   return (
-    <AuthProvider>
-      <Router>
-        <Routes>
-          <Route path="/" element={<Layout />}>
-            {/* Public Routes */}
-            <Route index element={<Home />} />
-            <Route path="about" element={<About />} />
-            <Route path="services" element={<Services />} />
-            <Route path="services/:serviceId" element={<ServiceDetails />} />
-            <Route path="contact" element={<Contact />} />
-            <Route path="faq" element={<FAQ />} />
-            <Route path="login" element={<Login />} />
-            <Route path="register" element={<Register />} />
-            <Route path="verify" element={<Verify />} />
-            <Route path="professionals" element={<Professionals />} />
-            <Route path="privacy-policy" element={<PrivacyPolicy />} />
-            <Route path="terms-of-service" element={<TermsOfService />} />
-            
-            {/* Protected User Routes */}
-            <Route 
-              path="dashboard" 
-              element={
-                <ProtectedRoute allowedRoles={['user', 'professional', 'admin']}>
-                  <Dashboard />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="profile" 
-              element={
-                <ProtectedRoute allowedRoles={['user', 'professional', 'admin']}>
-                  <Profile />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="book-appointment" 
-              element={
-                <ProtectedRoute allowedRoles={['user']}>
-                  <BookAppointment />
-                </ProtectedRoute>
-              } 
-            />
-            <Route 
-              path="appointments/:id" 
-              element={
-                <ProtectedRoute allowedRoles={['user', 'professional', 'admin']}>
-                  <AppointmentDetails />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Professional Routes */}
-            <Route 
-              path="professional" 
-              element={
-                <ProtectedRoute allowedRoles={['professional', 'admin']}>
-                  <ProfessionalDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* Admin Routes */}
-            <Route 
-              path="admin" 
-              element={
-                <ProtectedRoute allowedRoles={['admin']}>
-                  <AdminDashboard />
-                </ProtectedRoute>
-              } 
-            />
-            
-            {/* 404 and redirects */}
-            <Route path="404" element={<NotFound />} />
-            <Route path="*" element={<Navigate to="/404" replace />} />
-          </Route>
-        </Routes>
-      </Router>
-    </AuthProvider>
+    <>
+    <Routes>
+      <Route path="/" element={<Layout />}>
+        <Route index element={<Home />} />
+        <Route path="service/:id" element={<ServiceDetails />} />
+        <Route path="faq" element={<FAQ />} />
+        <Route path="contact" element={<Contact />} />
+        <Route path="services" element={<Services />} />
+        <Route path="terms-of-service" element={<TermsOfService />} />
+       <Route path="privacy-policy" element={<PrivacyPolicy />} />
+        <Route path="about" element={<About />} />
+        <Route path="appointment/:id" element={<AppointmentDetails />} />
+        <Route path="verify" element={<Verify />} />
+        <Route path="verify/:token" element={<Verify />} />
+        <Route path="verify/:token/:role" element={<Verify />} />
+        <Route path="verify/:token/:role/:id" element={<Verify />} />
+        <Route path="verify/:token/:role/:id/:email" element={<Verify />} />
+        <Route path="verify/:token/:role/:id/:mobile" element={<Verify />} />
+        <Route path="book-appointment" element={<BookAppointment />} />
+        <Route path="admin/dashboard" element={<AdminDashboard />} />
+        <Route path="user">
+          <Route path="register" element={<UserRegister />} />
+          <Route path="login" element={<UserLogin />} />
+        </Route>
+        <Route path="professional">
+          <Route path="register" element={<ProfessionalRegister />} />
+          <Route path="login" element={<ProfessionalLogin />} />
+        </Route>
+        <Route 
+          path="dashboard" 
+          element={
+            <ProtectedRoute allowedRoles={['user', 'admin']}>
+              <Dashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route 
+          path="professional/dashboard" 
+          element={
+            <ProtectedRoute allowedRoles={['professional', 'admin']}>
+              <ProfessionalDashboard />
+            </ProtectedRoute>
+          } 
+        />
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Route>
+    </Routes>
+    <Footer/>
+    </>
   );
 }
 

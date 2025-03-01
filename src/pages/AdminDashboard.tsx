@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { supabase } from '../lib/supabaseClient';
-import { User, Professional, Appointment, Payment } from '../types';
 import { Users, Calendar, CreditCard, CheckCircle, XCircle, AlertCircle, Search } from 'lucide-react';
 
 const AdminDashboard: React.FC = () => {

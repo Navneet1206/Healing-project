@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
+import { getProfessionals } from '../services/professionalService';
 import { Professional } from '../types';
 import { Search, Filter, Star, Calendar, User, Clock } from 'lucide-react';
 
@@ -18,13 +18,8 @@ const Professionals: React.FC = () => {
         setLoading(true);
         setError(null);
         
-        const { data, error } = await supabase
-          .from('professionals')
-          .select('*');
-          
-        if (error) throw error;
-        
-        setProfessionals(data as Professional[]);
+        const data = await getProfessionals();
+        setProfessionals(data);
         
         // Extract unique specializations
         const uniqueSpecializations = Array.from(
@@ -33,7 +28,7 @@ const Professionals: React.FC = () => {
         setSpecializations(uniqueSpecializations as string[]);
       } catch (err: any) {
         console.error('Error fetching professionals:', err);
-        setError(err.message || 'Failed to fetch professionals');
+        setError(err.response?.data?.error || 'Failed to fetch professionals');
       } finally {
         setLoading(false);
       }

@@ -16,7 +16,8 @@ export interface Professional {
   specialization: string;
   bio: string;
   hourlyRate: number;
-  availability: Availability[];
+  availability?: Availability[];
+  createdAt?: string;
 }
 
 export interface Availability {

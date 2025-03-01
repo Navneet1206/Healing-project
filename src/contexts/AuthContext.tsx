@@ -1,20 +1,233 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { User } from '../types';
+import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import axios from 'axios';
 
+// Define the API URL
+const API_URL = 'http://localhost:3001/api';
+
+// Create axios instance
+const api = axios.create({
+  baseURL: API_URL,
+  withCredentials: true, // Important for cookies
+  headers: {
+    'Content-Type': 'application/json'
+  }
+});
+
+// Add request interceptor to include token in headers
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('accessToken');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Add response interceptor to handle token refresh
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const originalRequest = error.config;
+    
+    // If error is 401 and not already retrying
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      originalRequest._retry = true;
+      
+      try {
+        // Try to refresh the token
+        const refreshToken = localStorage.getItem('refreshToken');
+        const { data } = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
+        
+        // Update tokens
+        localStorage.setItem('accessToken', data.accessToken);
+        
+        // Retry the original request
+        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
+        return axios(originalRequest);
+      } catch (refreshError) {
+        // If refresh fails, logout
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/user/login';
+        return Promise.reject(refreshError);
+      }
+    }
+    
+    return Promise.reject(error);
+  }
+);
+
+// Define user type
+interface User {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: 'user' | 'professional' | 'admin';
+  isVerified: boolean;
+}
+
+// Define auth context type
 interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, phone: string, role: string) => Promise<void>;
+  registerUser: (userData: any) => Promise<void>;
+  registerProfessional: (userData: any) => Promise<void>;
+  loginUser: (email: string, password: string) => Promise<void>;
+  loginProfessional: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  verifyEmail: (token: string) => Promise<void>;
-  verifyPhone: (phone: string, otp: string) => Promise<void>;
 }
 
+// Create auth context
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+// Auth provider props
+interface AuthProviderProps {
+  children: ReactNode;
+}
+
+// Auth provider component
+export const AuthProvider = ({ children }: AuthProviderProps) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Check if user is logged in on mount
+  useEffect(() => {
+    const checkLoggedIn = async () => {
+      try {
+        const token = localStorage.getItem('accessToken');
+        
+        if (!token) {
+          setLoading(false);
+          return;
+        }
+        
+        const { data } = await api.get('/auth/me');
+        setUser(data.user);
+      } catch (err) {
+        console.error('Auth check error:', err);
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    checkLoggedIn();
+  }, []);
+
+  // Register user
+  const registerUser = async (userData: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data } = await api.post('/auth/user/register', userData);
+      
+      localStorage.setItem('accessToken', data.accessToken);
+      setUser(data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Registration failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Register professional
+  const registerProfessional = async (userData: any) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data } = await api.post('/auth/professional/register', userData);
+      
+      localStorage.setItem('accessToken', data.accessToken);
+      setUser(data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Registration failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Login user
+  const loginUser = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data } = await api.post('/auth/user/login', { email, password });
+      
+      localStorage.setItem('accessToken', data.accessToken);
+      setUser(data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Login professional
+  const loginProfessional = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const { data } = await api.post('/auth/professional/login', { email, password });
+      
+      localStorage.setItem('accessToken', data.accessToken);
+      setUser(data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Logout
+  const logout = async () => {
+    try {
+      setLoading(true);
+      
+      await api.post('/auth/logout');
+      
+      localStorage.removeItem('accessToken');
+      localStorage.removeItem('refreshToken');
+      setUser(null);
+    } catch (err: any) {
+      console.error('Logout error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        error,
+        registerUser,
+        registerProfessional,
+        loginUser,
+        loginProfessional,
+        logout
+      }}
+    >
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+// Custom hook to use auth context
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
@@ -23,252 +236,5 @@ export const useAuth = () => {
   return context;
 };
 
-interface AuthProviderProps {
-  children: ReactNode;
-}
-
-export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    // Check for existing session
-    const checkUser = async () => {
-      try {
-        const { data, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data?.session) {
-          // Fetch additional user data from our users table
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', data.session.user.id)
-            .single();
-            
-          if (userError) throw userError;
-          
-          setUser({
-            id: data.session.user.id,
-            email: data.session.user.email!,
-            role: userData.role,
-            emailVerified: userData.email_verified,
-            phoneVerified: userData.phone_verified,
-            phone: userData.phone
-          });
-        }
-      } catch (err) {
-        console.error('Error checking authentication:', err);
-        setError('Failed to authenticate user');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    checkUser();
-
-    // Set up auth state listener
-    const { data: authListener } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (event === 'SIGNED_IN' && session) {
-          // Fetch user data when signed in
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('*')
-            .eq('id', session.user.id)
-            .single();
-            
-          if (!userError && userData) {
-            setUser({
-              id: session.user.id,
-              email: session.user.email!,
-              role: userData.role,
-              emailVerified: userData.email_verified,
-              phoneVerified: userData.phone_verified,
-              phone: userData.phone
-            });
-          }
-        } else if (event === 'SIGNED_OUT') {
-          setUser(null);
-        }
-      }
-    );
-
-    return () => {
-      authListener.subscription.unsubscribe();
-    };
-  }, []);
-
-  const login = async (email: string, password: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      
-      // Fetch additional user data
-      if (data.user) {
-        const { data: userData, error: userError } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', data.user.id)
-          .single();
-          
-        if (userError) throw userError;
-        
-        setUser({
-          id: data.user.id,
-          email: data.user.email!,
-          role: userData.role,
-          emailVerified: userData.email_verified,
-          phoneVerified: userData.phone_verified,
-          phone: userData.phone
-        });
-      }
-    } catch (err: any) {
-      console.error('Login error:', err);
-      setError(err.message || 'Failed to login');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const register = async (email: string, password: string, phone: string, role: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // Register with Supabase Auth
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-      
-      if (data.user) {
-        // Create user record in our users table
-        const { error: insertError } = await supabase
-          .from('users')
-          .insert([
-            { 
-              id: data.user.id,
-              email,
-              phone,
-              role,
-              email_verified: false,
-              phone_verified: false
-            }
-          ]);
-          
-        if (insertError) throw insertError;
-        
-        // Send verification email (this would be handled by a server endpoint in production)
-        // For now, we'll simulate this
-        console.log('Verification email would be sent to:', email);
-        
-        // Send verification SMS (this would be handled by a server endpoint in production)
-        console.log('Verification SMS would be sent to:', phone);
-      }
-    } catch (err: any) {
-      console.error('Registration error:', err);
-      setError(err.message || 'Failed to register');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      setLoading(true);
-      const { error } = await supabase.auth.signOut();
-      if (error) throw error;
-      setUser(null);
-    } catch (err: any) {
-      console.error('Logout error:', err);
-      setError(err.message || 'Failed to logout');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyEmail = async (token: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // In a real app, this would verify the token with your backend
-      // For now, we'll simulate a successful verification
-      
-      if (user) {
-        const { error } = await supabase
-          .from('users')
-          .update({ email_verified: true })
-          .eq('id', user.id);
-          
-        if (error) throw error;
-        
-        setUser({
-          ...user,
-          emailVerified: true
-        });
-      }
-    } catch (err: any) {
-      console.error('Email verification error:', err);
-      setError(err.message || 'Failed to verify email');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const verifyPhone = async (phone: string, otp: string) => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // In a real app, this would verify the OTP with your backend/2Factor API
-      // For now, we'll simulate a successful verification
-      
-      if (user) {
-        const { error } = await supabase
-          .from('users')
-          .update({ phone_verified: true })
-          .eq('id', user.id);
-          
-        if (error) throw error;
-        
-        setUser({
-          ...user,
-          phoneVerified: true
-        });
-      }
-    } catch (err: any) {
-      console.error('Phone verification error:', err);
-      setError(err.message || 'Failed to verify phone');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const value = {
-    user,
-    loading,
-    error,
-    login,
-    register,
-    logout,
-    verifyEmail,
-    verifyPhone
-  };
-
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-};
+// Export api for use in other components
+export { api };

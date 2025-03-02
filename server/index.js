@@ -6,7 +6,6 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { rateLimit } from 'express-rate-limit';
-
 // Import routes
 import authRoutes from './routes/authRoutes.js';
 

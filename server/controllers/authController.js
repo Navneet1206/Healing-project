@@ -2,7 +2,9 @@ import User from '../models/User.js';
 import Professional from '../models/Professional.js';
 import { generateAccessToken, generateRefreshToken, verifyRefreshToken } from '../utils/jwtUtils.js';
 import { AppError } from '../middleware/errorMiddleware.js';
+import dotenv from 'dotenv';
 
+dotenv.config();
 // Set cookie options
 const cookieOptions = {
   httpOnly: true,

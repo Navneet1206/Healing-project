@@ -1,7 +1,9 @@
 import Appointment from '../models/appointmentModel.js';
 import Professional from '../models/professionalModel.js';
 import nodemailer from 'nodemailer';
+import dotenv from 'dotenv';
 
+dotenv.config();
 // Configure email transporter
 const transporter = nodemailer.createTransport({
   host: process.env.EMAIL_HOST,

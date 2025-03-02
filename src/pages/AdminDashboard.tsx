@@ -1,6 +1,48 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../lib/api'; // Import Axios instance
 import { Users, Calendar, CreditCard, CheckCircle, XCircle, AlertCircle, Search } from 'lucide-react';
+
+// Assuming these types are defined in '../types'
+interface User {
+  id: string;
+  email: string;
+  phone: string;
+  role: string;
+  emailVerified: boolean;
+  phoneVerified: boolean;
+  createdAt: string;
+}
+
+interface Professional {
+  id: string;
+  name: string;
+  specialization: string;
+  hourlyRate: number;
+  createdAt: string;
+  user: { email: string }; // Nested user data
+}
+
+interface Appointment {
+  id: string;
+  date: string;
+  startTime: string;
+  endTime: string;
+  status: string;
+  paymentId?: string;
+  user: { email: string };
+  professional: { name: string };
+}
+
+interface Payment {
+  id: string;
+  transactionId: string;
+  amount: number;
+  status: string;
+  paymentMethod: string;
+  createdAt: string;
+  user: { email: string };
+}
 
 const AdminDashboard: React.FC = () => {
   const { user } = useAuth();
@@ -25,61 +67,23 @@ const AdminDashboard: React.FC = () => {
         }
 
         // Fetch users
-        const { data: usersData, error: usersError } = await supabase
-          .from('users')
-          .select('*');
+        const usersResponse = await api.get('/users');
+        setUsers(usersResponse.data);
 
-        if (usersError) throw usersError;
-        setUsers(usersData as User[]);
+        // Fetch professionals (with nested user data)
+        const professionalsResponse = await api.get('/professionals?populate=user');
+        setProfessionals(professionalsResponse.data);
 
-        // Fetch professionals
-        const { data: professionalsData, error: professionalsError } = await supabase
-          .from('professionals')
-          .select(`
-            *,
-            users:user_id (
-              email,
-              phone
-            )
-          `);
+        // Fetch appointments (with nested user and professional data)
+        const appointmentsResponse = await api.get('/appointments?populate=user,professional&sort=date:desc');
+        setAppointments(appointmentsResponse.data);
 
-        if (professionalsError) throw professionalsError;
-        setProfessionals(professionalsData as any);
-
-        // Fetch appointments
-        const { data: appointmentsData, error: appointmentsError } = await supabase
-          .from('appointments')
-          .select(`
-            *,
-            users:user_id (
-              email
-            ),
-            professionals:professional_id (
-              name
-            )
-          `)
-          .order('date', { ascending: false });
-
-        if (appointmentsError) throw appointmentsError;
-        setAppointments(appointmentsData as any);
-
-        // Fetch payments
-        const { data: paymentsData, error: paymentsError } = await supabase
-          .from('payments')
-          .select(`
-            *,
-            users:user_id (
-              email
-            )
-          `)
-          .order('created_at', { ascending: false });
-
-        if (paymentsError) throw paymentsError;
-        setPayments(paymentsData as any);
-
+        // Fetch payments (with nested user data)
+        const paymentsResponse = await api.get('/payments?populate=user&sort=createdAt:desc');
+        setPayments(paymentsResponse.data);
       } catch (err: any) {
         console.error('Error fetching admin data:', err);
-        setError(err.message || 'Failed to fetch data');
+        setError(err.response?.data?.message || 'Failed to fetch data');
       } finally {
         setLoading(false);
       }
@@ -141,31 +145,35 @@ const AdminDashboard: React.FC = () => {
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
       style: 'currency',
-      currency: 'INR'
+      currency: 'INR',
     }).format(amount);
   };
 
-  const filteredUsers = users.filter(user => 
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.phone.includes(searchTerm)
+  const filteredUsers = users.filter(
+    (user) =>
+      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (user.phone && user.phone.includes(searchTerm))
   );
 
-  const filteredProfessionals = professionals.filter(professional => 
-    professional.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    professional.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (professional as any).users.email.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredProfessionals = professionals.filter(
+    (professional) =>
+      professional.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      professional.specialization.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      professional.user.email.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const filteredAppointments = appointments.filter(appointment => 
-    (appointment as any).users.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (appointment as any).professionals.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    appointment.date.includes(searchTerm)
+  const filteredAppointments = appointments.filter(
+    (appointment) =>
+      appointment.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      appointment.professional.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      appointment.date.includes(searchTerm)
   );
 
-  const filteredPayments = payments.filter(payment => 
-    (payment as any).users.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    payment.transactionId.includes(searchTerm) ||
-    payment.status.toLowerCase().includes(searchTerm.toLowerCase())
+  const filteredPayments = payments.filter(
+    (payment) =>
+      payment.user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      payment.transactionId.includes(searchTerm) ||
+      payment.status.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   if (loading) {
@@ -298,7 +306,7 @@ const AdminDashboard: React.FC = () => {
                         {user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {user.phone}
+                        {user.phone || 'N/A'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-indigo-100 text-indigo-800">
@@ -329,9 +337,7 @@ const AdminDashboard: React.FC = () => {
                         {formatDate(user.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          View
-                        </button>
+                        <button className="text-indigo-600 hover:text-indigo-900">View</button>
                       </td>
                     </tr>
                   ))}
@@ -377,7 +383,7 @@ const AdminDashboard: React.FC = () => {
                         {professional.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(professional as any).users.email}
+                        {professional.user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {professional.specialization}
@@ -389,9 +395,7 @@ const AdminDashboard: React.FC = () => {
                         {formatDate(professional.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          View
-                        </button>
+                        <button className="text-indigo-600 hover:text-indigo-900">View</button>
                       </td>
                     </tr>
                   ))}
@@ -438,10 +442,10 @@ const AdminDashboard: React.FC = () => {
                         <div>{formatTime(appointment.startTime)} - {formatTime(appointment.endTime)}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(appointment as any).users.email}
+                        {appointment.user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(appointment as any).professionals.name}
+                        {appointment.professional.name}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {getStatusBadge(appointment.status)}
@@ -454,9 +458,7 @@ const AdminDashboard: React.FC = () => {
                         )}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          View
-                        </button>
+                        <button className="text-indigo-600 hover:text-indigo-900">View</button>
                       </td>
                     </tr>
                   ))}
@@ -505,7 +507,7 @@ const AdminDashboard: React.FC = () => {
                         {payment.transactionId}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {(payment as any).users.email}
+                        {payment.user.email}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatCurrency(payment.amount)}
@@ -520,9 +522,7 @@ const AdminDashboard: React.FC = () => {
                         {formatDate(payment.createdAt)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <button className="text-indigo-600 hover:text-indigo-900">
-                          View
-                        </button>
+                        <button className="text-indigo-600 hover:text-indigo-900">View</button>
                       </td>
                     </tr>
                   ))}
@@ -584,7 +584,7 @@ const AdminDashboard: React.FC = () => {
                 <p className="text-3xl font-bold text-purple-600">
                   {formatCurrency(
                     payments
-                      .filter(payment => payment.status === 'completed')
+                      .filter((payment) => payment.status === 'completed')
                       .reduce((total, payment) => total + payment.amount, 0)
                   )}
                 </p>

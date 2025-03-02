@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import api from '../lib/api'; // Import the Axios instance
 import { Appointment, Payment } from '../types';
 import { Calendar, Clock, User, CheckCircle, XCircle, AlertCircle, CreditCard, ArrowLeft } from 'lucide-react';
 
@@ -24,58 +25,24 @@ const AppointmentDetails: React.FC = () => {
         if (!id || !user) return;
 
         // Fetch appointment details
-        const { data: appointmentData, error: appointmentError } = await supabase
-          .from('appointments')
-          .select('*')
-          .eq('id', id)
-          .single();
+        const appointmentResponse = await api.get(`/appointments/${id}`);
+        const appointmentData = appointmentResponse.data;
 
-        if (appointmentError) throw appointmentError;
-        
-        // Check if user has permission to view this appointment
-        if (user.role === 'user' && appointmentData.user_id !== user.id) {
-          throw new Error('You do not have permission to view this appointment');
-        }
-        
-        if (user.role === 'professional') {
-          // Check if the professional is associated with this appointment
-          const { data: professionalData } = await supabase
-            .from('professionals')
-            .select('id')
-            .eq('user_id', user.id)
-            .single();
-            
-          if (professionalData && appointmentData.professional_id !== professionalData.id) {
-            throw new Error('You do not have permission to view this appointment');
-          }
-        }
-
-        setAppointment(appointmentData as Appointment);
+        // Backend API should handle authorization; errors will be caught if unauthorized
+        setAppointment(appointmentData);
 
         // Fetch professional details
-        const { data: professionalData, error: professionalError } = await supabase
-          .from('professionals')
-          .select('*')
-          .eq('id', appointmentData.professional_id)
-          .single();
-
-        if (professionalError) throw professionalError;
-        setProfessional(professionalData);
+        const professionalResponse = await api.get(`/professionals/${appointmentData.professionalId}`);
+        setProfessional(professionalResponse.data);
 
         // Fetch payment details if available
-        if (appointmentData.payment_id) {
-          const { data: paymentData, error: paymentError } = await supabase
-            .from('payments')
-            .select('*')
-            .eq('id', appointmentData.payment_id)
-            .single();
-
-          if (paymentError) throw paymentError;
-          setPayment(paymentData as Payment);
+        if (appointmentData.paymentId) {
+          const paymentResponse = await api.get(`/payments/${appointmentData.paymentId}`);
+          setPayment(paymentResponse.data);
         }
       } catch (err: any) {
         console.error('Error fetching appointment details:', err);
-        setError(err.message || 'Failed to fetch appointment details');
+        setError(err.response?.data?.message || 'Failed to fetch appointment details');
       } finally {
         setLoading(false);
       }
@@ -84,6 +51,7 @@ const AppointmentDetails: React.FC = () => {
     fetchAppointmentDetails();
   }, [id, user]);
 
+  // //Canceling an Appointment
   const cancelAppointment = async () => {
     try {
       setLoading(true);
@@ -91,13 +59,8 @@ const AppointmentDetails: React.FC = () => {
 
       if (!appointment) return;
 
-      // Update appointment status to cancelled
-      const { error: updateError } = await supabase
-        .from('appointments')
-        .update({ status: 'cancelled' })
-        .eq('id', appointment.id);
-
-      if (updateError) throw updateError;
+      // Update appointment status to 'cancelled' via API
+      await api.put(`/appointments/${appointment.id}`, { status: 'cancelled' });
 
       // Update local state
       setAppointment({
@@ -108,12 +71,13 @@ const AppointmentDetails: React.FC = () => {
       setCancelConfirm(false);
     } catch (err: any) {
       console.error('Error cancelling appointment:', err);
-      setError(err.message || 'Failed to cancel appointment');
+      setError(err.response?.data?.message || 'Failed to cancel appointment');
     } finally {
       setLoading(false);
     }
   };
 
+  // //Initiating a Payment (Demo Simulation)
   const initiatePayment = async () => {
     try {
       setLoading(true);
@@ -121,41 +85,27 @@ const AppointmentDetails: React.FC = () => {
 
       if (!appointment || !professional) return;
 
-      // In a real app, this would create a Razorpay order and redirect to payment
-      alert('In a real app, this would redirect to Razorpay payment gateway');
-      
-      // For demo purposes, we'll simulate a successful payment
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .insert([
-          {
-            appointment_id: appointment.id,
-            user_id: user?.id,
-            amount: professional.hourly_rate,
-            currency: 'INR',
-            status: 'completed',
-            payment_method: 'card',
-            transaction_id: `DEMO-${Date.now()}`
-          }
-        ])
-        .select()
-        .single();
-        
-      if (paymentError) throw paymentError;
-      
-      // Update appointment with payment ID
-      const { error: updateError } = await supabase
-        .from('appointments')
-        .update({ 
-          payment_id: paymentData.id,
-          status: 'confirmed'
-        })
-        .eq('id', appointment.id);
-        
-      if (updateError) throw updateError;
-      
+      // Simulate creating a payment (for demo purposes)
+      const paymentResponse = await api.post('/payments', {
+        appointmentId: appointment.id,
+        userId: user?.id,
+        amount: professional.hourlyRate,
+        currency: 'INR',
+        status: 'completed',
+        paymentMethod: 'card',
+        transactionId: `DEMO-${Date.now()}`
+      });
+
+      const paymentData = paymentResponse.data;
+
+      // Update appointment with payment ID and status
+      await api.put(`/appointments/${appointment.id}`, {
+        paymentId: paymentData.id,
+        status: 'confirmed'
+      });
+
       // Update local state
-      setPayment(paymentData as Payment);
+      setPayment(paymentData);
       setAppointment({
         ...appointment,
         paymentId: paymentData.id,
@@ -163,12 +113,13 @@ const AppointmentDetails: React.FC = () => {
       });
     } catch (err: any) {
       console.error('Error initiating payment:', err);
-      setError(err.message || 'Failed to initiate payment');
+      setError(err.response?.data?.message || 'Failed to initiate payment');
     } finally {
       setLoading(false);
     }
   };
 
+  // //Helper Functions
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'confirmed':
@@ -230,6 +181,7 @@ const AppointmentDetails: React.FC = () => {
     }).format(amount);
   };
 
+  //Loading State
   if (loading) {
     return (
       <div className="flex justify-center items-center h-screen">
@@ -239,6 +191,7 @@ const AppointmentDetails: React.FC = () => {
     );
   }
 
+  //Error State
   if (error) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -262,6 +215,7 @@ const AppointmentDetails: React.FC = () => {
     );
   }
 
+  //Not Found State
   if (!appointment || !professional) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -285,6 +239,7 @@ const AppointmentDetails: React.FC = () => {
     );
   }
 
+  //Main UI
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
       <div className="mb-8 flex items-center">
@@ -397,15 +352,15 @@ const AppointmentDetails: React.FC = () => {
                     <div className="bg-indigo-50 p-4 rounded-md mb-4">
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-gray-700">Session Fee</span>
-                        <span className="font-semibold">{formatCurrency(professional.hourly_rate)}</span>
+                        <span className="font-semibold">{formatCurrency(professional.hourlyRate)}</span>
                       </div>
                       <div className="flex justify-between items-center mb-2">
                         <span className="text-gray-700">Taxes</span>
-                        <span className="font-semibold">{formatCurrency(professional.hourly_rate * 0.18)}</span>
+                        <span className="font-semibold">{formatCurrency(professional.hourlyRate * 0.18)}</span>
                       </div>
                       <div className="flex justify-between items-center pt-2 border-t border-indigo-100">
                         <span className="font-semibold">Total</span>
-                        <span className="font-semibold">{formatCurrency(professional.hourly_rate * 1.18)}</span>
+                        <span className="font-semibold">{formatCurrency(professional.hourlyRate * 1.18)}</span>
                       </div>
                     </div>
                   )}

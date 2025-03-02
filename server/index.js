@@ -6,27 +6,36 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import morgan from 'morgan';
 import { rateLimit } from 'express-rate-limit';
-// Import routes
+import connectDB from './config/db.js'; // Import DB connection function
 import authRoutes from './routes/authRoutes.js';
+import appointmentRoutes from './routes/appointmentRoutes.js';
+import availabilityRoutes from './routes/availabilityRoutes.js';
+import paymentRoutes from './routes/paymentRoutes.js';
+import professionalRoutes from './routes/professionalRoutes.js';
+import userRoutes from './routes/userRoutes.js';
 
 // Load environment variables
 dotenv.config();
+
+// Validate critical environment variables
+const requiredEnv = ['MONGODB_URI', 'FRONTEND_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+requiredEnv.forEach((varName) => {
+  if (!process.env[varName]) {
+    console.error(`Error: Missing required environment variable ${varName}`);
+    process.exit(1);
+  }
+});
 
 // Create Express app
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Connect to MongoDB
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch(err => console.error('MongoDB connection error:', err));
-
 // Middleware
-app.use(helmet()); // Set security headers
-app.use(morgan('dev')); // Logging
-app.use(express.json()); // Parse JSON bodies
-app.use(express.urlencoded({ extended: true })); // Parse URL-encoded bodies
-app.use(cookieParser()); // Parse cookies
+app.use(helmet());
+app.use(morgan('dev'));
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
 // Configure CORS
 app.use(cors({
@@ -39,7 +48,7 @@ app.use(cors({
 // Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // Limit each IP to 100 requests per windowMs
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many requests from this IP, please try again after 15 minutes'
@@ -48,6 +57,11 @@ app.use(limiter);
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/appointments', appointmentRoutes);
+app.use('/api/availability', availabilityRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/professionals', professionalRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check route
 app.get('/', (req, res) => {
@@ -65,9 +79,19 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+// Start server after DB connection
+const startServer = async () => {
+  try {
+    await connectDB(); // Use the separate DB connection function
+    app.listen(PORT, () => {
+      console.log(`Server running https://localhost:${PORT}`); 
+    });
+  } catch (error) {
+    console.error('Failed to start server:', error);
+    process.exit(1);
+  }
+};
+
+startServer();
 
 export default app;

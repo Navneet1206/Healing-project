@@ -1,5 +1,5 @@
 import { verifyAccessToken } from '../utils/jwtUtils.js';
-import User from '../models/User.js';
+import User from '../models/userModel.js';
 
 // Middleware to protect routes
 export const protect = async (req, res, next) => {

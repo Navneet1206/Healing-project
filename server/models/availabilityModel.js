@@ -24,6 +24,8 @@ const availabilitySchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+}, {
+  timestamps: true,
 });
 
 // Validate that startTime is before endTime

@@ -21,6 +21,9 @@ import Verify from './pages/Verify';
 import BookAppointment from './pages/BookAppointment';
 import AdminDashboard from './pages/AdminDashboard';
 import Footer from './components/Footer';
+import Professionals from './pages/Professionals';
+import Navbar from './components/Navbar';
+
 function App() {
   const { loading } = useAuth();
 
@@ -34,53 +37,58 @@ function App() {
 
   return (
     <>
-    <Routes>
-      <Route path="/" element={<Layout />}>
-        <Route index element={<Home />} />
-        <Route path="service/:id" element={<ServiceDetails />} />
-        <Route path="faq" element={<FAQ />} />
-        <Route path="contact" element={<Contact />} />
-        <Route path="services" element={<Services />} />
-        <Route path="terms-of-service" element={<TermsOfService />} />
-       <Route path="privacy-policy" element={<PrivacyPolicy />} />
-        <Route path="about" element={<About />} />
-        <Route path="appointment/:id" element={<AppointmentDetails />} />
-        <Route path="verify" element={<Verify />} />
-        <Route path="verify/:token" element={<Verify />} />
-        <Route path="verify/:token/:role" element={<Verify />} />
-        <Route path="verify/:token/:role/:id" element={<Verify />} />
-        <Route path="verify/:token/:role/:id/:email" element={<Verify />} />
-        <Route path="verify/:token/:role/:id/:mobile" element={<Verify />} />
-        <Route path="book-appointment" element={<BookAppointment />} />
-        <Route path="admin/dashboard" element={<AdminDashboard />} />
-        <Route path="user">
-          <Route path="register" element={<UserRegister />} />
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Layout />}>
+          <Route index element={<Home />} />
+          <Route path="service/:id" element={<ServiceDetails />} />
+          <Route path="faq" element={<FAQ />} />
+          <Route path="contact" element={<Contact />} />
+          <Route path="services" element={<Services />} />
+          <Route path="terms-of-service" element={<TermsOfService />} />
+          <Route path="privacy-policy" element={<PrivacyPolicy />} />
+          <Route path="about" element={<About />} />
+          <Route path="appointment/:id" element={<AppointmentDetails />} />
+          <Route path="verify" element={<Verify />} />
+          <Route path="verify/:token" element={<Verify />} />
+          <Route path="verify/:token/:role" element={<Verify />} />
+          <Route path="verify/:token/:role/:id" element={<Verify />} />
+          <Route path="verify/:token/:role/:id/:email" element={<Verify />} />
+          <Route path="verify/:token/:role/:id/:mobile" element={<Verify />} />
+          <Route path="book-appointment" element={<BookAppointment />} />
+          <Route path="admin/dashboard" element={<AdminDashboard />} />
+          <Route path="professionals" element={<Professionals />} />
+          <Route path="user">
+            <Route path="register" element={<UserRegister />} />
+            <Route path="login" element={<UserLogin />} />
+          </Route>
+          <Route path="professional">
+            <Route path="register" element={<ProfessionalRegister />} />
+            <Route path="login" element={<ProfessionalLogin />} />
+          </Route>
+          <Route 
+            path="dashboard" 
+            element={
+              <ProtectedRoute allowedRoles={['user', 'admin']}>
+                <Dashboard />
+              </ProtectedRoute>
+            } 
+          />
+          <Route 
+            path="professional/dashboard" 
+            element={
+              <ProtectedRoute allowedRoles={['professional', 'admin']}>
+                <ProfessionalDashboard />
+              </ProtectedRoute>
+            } 
+          />
+          {/* Alias routes for login and register */}
           <Route path="login" element={<UserLogin />} />
+          <Route path="register" element={<UserRegister />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-        <Route path="professional">
-          <Route path="register" element={<ProfessionalRegister />} />
-          <Route path="login" element={<ProfessionalLogin />} />
-        </Route>
-        <Route 
-          path="dashboard" 
-          element={
-            <ProtectedRoute allowedRoles={['user', 'admin']}>
-              <Dashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route 
-          path="professional/dashboard" 
-          element={
-            <ProtectedRoute allowedRoles={['professional', 'admin']}>
-              <ProfessionalDashboard />
-            </ProtectedRoute>
-          } 
-        />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Route>
-    </Routes>
-    <Footer/>
+      </Routes>
+      <Footer />
     </>
   );
 }

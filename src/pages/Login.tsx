@@ -2,11 +2,16 @@ import React from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
-import { LoginFormData } from '../types';
 import { Lock } from 'lucide-react';
 
+// Define form data type
+interface LoginFormData {
+  email: string;
+  password: string;
+}
+
 const Login: React.FC = () => {
-  const { login, error, loading } = useAuth();
+  const { login, error, loading } = useAuth(); // Destructuring now matches AuthContext
   const navigate = useNavigate();
   const { register, handleSubmit, formState: { errors } } = useForm<LoginFormData>();
 
@@ -61,12 +66,12 @@ const Login: React.FC = () => {
                   type="email"
                   autoComplete="email"
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  {...register('email', { 
+                  {...register('email', {
                     required: 'Email is required',
                     pattern: {
                       value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                      message: 'Invalid email address'
-                    }
+                      message: 'Invalid email address',
+                    },
                   })}
                 />
                 {errors.email && (
@@ -85,12 +90,12 @@ const Login: React.FC = () => {
                   type="password"
                   autoComplete="current-password"
                   className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-                  {...register('password', { 
+                  {...register('password', {
                     required: 'Password is required',
                     minLength: {
                       value: 6,
-                      message: 'Password must be at least 6 characters'
-                    }
+                      message: 'Password must be at least 6 characters',
+                    },
                   })}
                 />
                 {errors.password && (

@@ -1,63 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import axios from 'axios';
-
-// Define the API URL
-const API_URL = 'http://localhost:3001/api';
-
-// Create axios instance
-const api = axios.create({
-  baseURL: API_URL,
-  withCredentials: true, // Important for cookies
-  headers: {
-    'Content-Type': 'application/json'
-  }
-});
-
-// Add request interceptor to include token in headers
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('accessToken');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
-    }
-    return config;
-  },
-  (error) => Promise.reject(error)
-);
-
-// Add response interceptor to handle token refresh
-api.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    
-    // If error is 401 and not already retrying
-    if (error.response?.status === 401 && !originalRequest._retry) {
-      originalRequest._retry = true;
-      
-      try {
-        // Try to refresh the token
-        const refreshToken = localStorage.getItem('refreshToken');
-        const { data } = await axios.post(`${API_URL}/auth/refresh-token`, { refreshToken });
-        
-        // Update tokens
-        localStorage.setItem('accessToken', data.accessToken);
-        
-        // Retry the original request
-        originalRequest.headers.Authorization = `Bearer ${data.accessToken}`;
-        return axios(originalRequest);
-      } catch (refreshError) {
-        // If refresh fails, logout
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/user/login';
-        return Promise.reject(refreshError);
-      }
-    }
-    
-    return Promise.reject(error);
-  }
-);
+import api from '../lib/api'; // Import the Axios instance
 
 // Define user type
 interface User {
@@ -66,7 +8,51 @@ interface User {
   firstName: string;
   lastName: string;
   role: 'user' | 'professional' | 'admin';
-  isVerified: boolean;
+  emailVerified: boolean; // Added for Verify.tsx
+  phoneVerified: boolean; // Added for Verify.tsx
+  phone?: string;         // Added for Verify.tsx phone verification
+}
+
+// Define types for API request data
+interface RegisterUserData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  phone?: string; // Optional for user registration
+}
+
+interface RegisterProfessionalData {
+  email: string;
+  password: string;
+  firstName: string;
+  lastName: string;
+  specialization: string;
+  licenseNumber: string;
+  yearsOfExperience: number;
+  bio: string;
+  phone?: string; // Optional for professional registration
+}
+
+interface LoginData {
+  email: string;
+  password: string;
+}
+
+interface VerifyEmailData {
+  token: string;
+}
+
+interface VerifyPhoneData {
+  phone: string;
+  otp: string;
+}
+
+// Define response types
+interface AuthResponse {
+  accessToken: string;
+  refreshToken?: string; // Optional, depending on backend
+  user: User;
 }
 
 // Define auth context type
@@ -74,11 +60,14 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   error: string | null;
-  registerUser: (userData: any) => Promise<void>;
-  registerProfessional: (userData: any) => Promise<void>;
+  registerUser: (data: RegisterUserData) => Promise<void>;
+  registerProfessional: (data: RegisterProfessionalData) => Promise<void>;
+  login: (email: string, password: string) => Promise<void>;
   loginUser: (email: string, password: string) => Promise<void>;
   loginProfessional: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
+  verifyEmail: (token: string) => Promise<void>;
+  verifyPhone: (phone: string, otp: string) => Promise<void>;
 }
 
 // Create auth context
@@ -92,7 +81,7 @@ interface AuthProviderProps {
 // Auth provider component
 export const AuthProvider = ({ children }: AuthProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
   // Check if user is logged in on mount
@@ -100,36 +89,39 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     const checkLoggedIn = async () => {
       try {
         const token = localStorage.getItem('accessToken');
-        
         if (!token) {
           setLoading(false);
           return;
         }
-        
-        const { data } = await api.get('/auth/me');
+
+        const { data } = await api.get<AuthResponse>('/auth/me');
         setUser(data.user);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Auth check error:', err);
         localStorage.removeItem('accessToken');
         localStorage.removeItem('refreshToken');
+        setError(err.response?.data?.message || 'Failed to verify session');
       } finally {
         setLoading(false);
       }
     };
-    
+
     checkLoggedIn();
   }, []);
 
   // Register user
-  const registerUser = async (userData: any) => {
+  const registerUser = async (data: RegisterUserData) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data } = await api.post('/auth/user/register', userData);
-      
-      localStorage.setItem('accessToken', data.accessToken);
-      setUser(data.user);
+
+      const { data: response } = await api.post<AuthResponse>('/auth/user/register', data);
+
+      localStorage.setItem('accessToken', response.accessToken);
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken);
+      }
+      setUser(response.user);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');
       throw err;
@@ -139,15 +131,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   };
 
   // Register professional
-  const registerProfessional = async (userData: any) => {
+  const registerProfessional = async (data: RegisterProfessionalData) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data } = await api.post('/auth/professional/register', userData);
-      
-      localStorage.setItem('accessToken', data.accessToken);
-      setUser(data.user);
+
+      const { data: response } = await api.post<AuthResponse>('/auth/professional/register', data);
+
+      localStorage.setItem('accessToken', response.accessToken);
+      if (response.refreshToken) {
+        localStorage.setItem('refreshToken', response.refreshToken);
+      }
+      setUser(response.user);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Registration failed');
       throw err;
@@ -156,15 +151,18 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Login user
-  const loginUser = async (email: string, password: string) => {
+  // Generic login (defaults to user login)
+  const login = async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data } = await api.post('/auth/user/login', { email, password });
-      
+
+      const { data } = await api.post<AuthResponse>('/auth/user/login', { email, password });
+
       localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
       setUser(data.user);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
@@ -174,18 +172,84 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
     }
   };
 
-  // Login professional
+  // Login user (specific endpoint)
+  const loginUser = async (email: string, password: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data } = await api.post<AuthResponse>('/auth/user/login', { email, password });
+
+      localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
+      setUser(data.user);
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Login professional (specific endpoint)
   const loginProfessional = async (email: string, password: string) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data } = await api.post('/auth/professional/login', { email, password });
-      
+
+      const { data } = await api.post<AuthResponse>('/auth/professional/login', { email, password });
+
       localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
       setUser(data.user);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Login failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify email
+  const verifyEmail = async (token: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data } = await api.post<AuthResponse>('/auth/verify-email', { token });
+
+      localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
+      setUser(data.user); // Update user with verified status
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Email verification failed');
+      throw err;
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Verify phone
+  const verifyPhone = async (phone: string, otp: string) => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const { data } = await api.post<AuthResponse>('/auth/verify-phone', { phone, otp });
+
+      localStorage.setItem('accessToken', data.accessToken);
+      if (data.refreshToken) {
+        localStorage.setItem('refreshToken', data.refreshToken);
+      }
+      setUser(data.user); // Update user with verified status
+    } catch (err: any) {
+      setError(err.response?.data?.message || 'Phone verification failed');
       throw err;
     } finally {
       setLoading(false);
@@ -196,45 +260,44 @@ export const AuthProvider = ({ children }: AuthProviderProps) => {
   const logout = async () => {
     try {
       setLoading(true);
-      
+      setError(null);
+
       await api.post('/auth/logout');
-      
+
       localStorage.removeItem('accessToken');
       localStorage.removeItem('refreshToken');
       setUser(null);
     } catch (err: any) {
       console.error('Logout error:', err);
+      setError(err.response?.data?.message || 'Logout failed');
     } finally {
       setLoading(false);
     }
   };
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        error,
-        registerUser,
-        registerProfessional,
-        loginUser,
-        loginProfessional,
-        logout
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
+  // Context value
+  const value: AuthContextType = {
+    user,
+    loading,
+    error,
+    registerUser,
+    registerProfessional,
+    login,
+    loginUser,
+    loginProfessional,
+    logout,
+    verifyEmail,
+    verifyPhone,
+  };
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 // Custom hook to use auth context
-export const useAuth = () => {
+export const useAuth = (): AuthContextType => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');
   }
   return context;
 };
-
-// Export api for use in other components
-export { api };

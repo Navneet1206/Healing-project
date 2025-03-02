@@ -23,7 +23,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import Footer from './components/Footer';
 import Professionals from './pages/Professionals';
 import Navbar from './components/Navbar';
-
+import Register from './pages/Register';
 function App() {
   const { loading } = useAuth();
 
@@ -59,7 +59,7 @@ function App() {
           <Route path="admin/dashboard" element={<AdminDashboard />} />
           <Route path="professionals" element={<Professionals />} />
           <Route path="user">
-            <Route path="register" element={<UserRegister />} />
+          <Route path="register" element={<Register />} />
             <Route path="login" element={<UserLogin />} />
           </Route>
           <Route path="professional">

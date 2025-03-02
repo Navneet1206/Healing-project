@@ -1,5 +1,4 @@
 import api from '../lib/api';
-import { Appointment } from '../types';
 
 // Create a new appointment
 export const createAppointment = async (appointmentData: {

@@ -6,7 +6,7 @@ import { RegisterFormData } from '../types';
 import { UserPlus } from 'lucide-react';
 
 const Register: React.FC = () => {
-  const { register, loading, error } = useAuth();
+  const { registerUser, registerProfessional, loading, error } = useAuth();
   const navigate = useNavigate();
   const { register: registerField, handleSubmit, watch, formState: { errors } } = useForm<RegisterFormData>();
   const [role, setRole] = useState<'user' | 'professional'>('user');
@@ -15,7 +15,27 @@ const Register: React.FC = () => {
 
   const onSubmit = async (data: RegisterFormData) => {
     try {
-      await register(data.email, data.password, data.phone, role);
+      if (role === 'user') {
+        await registerUser({
+          email: data.email,
+          password: data.password,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          phone: data.phone,
+        });
+      } else {
+        await registerProfessional({
+          email: data.email,
+          password: data.password,
+          firstName: data.firstName || '',
+          lastName: data.lastName || '',
+          specialization: data.specialization || '', // Add these fields to your form if needed
+          licenseNumber: data.licenseNumber || '',
+          yearsOfExperience: data.yearsOfExperience || 0,
+          bio: data.bio || '',
+          phone: data.phone,
+        });
+      }
       navigate('/verify');
     } catch (err) {
       console.error('Registration error:', err);
@@ -150,6 +170,81 @@ const Register: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Additional fields for professionals */}
+            {role === 'professional' && (
+              <>
+                <div>
+                  <label htmlFor="specialization" className="block text-sm font-medium text-gray-700">
+                    Specialization
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="specialization"
+                      type="text"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      {...registerField('specialization', { required: 'Specialization is required' })}
+                    />
+                    {errors.specialization && (
+                      <p className="mt-2 text-sm text-red-600">{errors.specialization.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="licenseNumber" className="block text-sm font-medium text-gray-700">
+                    License Number
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="licenseNumber"
+                      type="text"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      {...registerField('licenseNumber', { required: 'License number is required' })}
+                    />
+                    {errors.licenseNumber && (
+                      <p className="mt-2 text-sm text-red-600">{errors.licenseNumber.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="yearsOfExperience" className="block text-sm font-medium text-gray-700">
+                    Years of Experience
+                  </label>
+                  <div className="mt-1">
+                    <input
+                      id="yearsOfExperience"
+                      type="number"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      {...registerField('yearsOfExperience', { 
+                        required: 'Years of experience is required',
+                        min: { value: 0, message: 'Years of experience cannot be negative' }
+                      })}
+                    />
+                    {errors.yearsOfExperience && (
+                      <p className="mt-2 text-sm text-red-600">{errors.yearsOfExperience.message}</p>
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="bio" className="block text-sm font-medium text-gray-700">
+                    Bio
+                  </label>
+                  <div className="mt-1">
+                    <textarea
+                      id="bio"
+                      className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                      {...registerField('bio', { required: 'Bio is required' })}
+                    />
+                    {errors.bio && (
+                      <p className="mt-2 text-sm text-red-600">{errors.bio.message}</p>
+                    )}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -1,5 +1,5 @@
 import { useAuth } from '../contexts/AuthContext';
-import { User, Calendar, Settings, Bell, Users, Briefcase } from 'lucide-react';
+import { User, Calendar, Settings, Users, Briefcase } from 'lucide-react';
 
 const ProfessionalDashboard = () => {
   const { user } = useAuth();

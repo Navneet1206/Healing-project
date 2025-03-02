@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { useAuth } from '../contexts/AuthContext';
 import { BookAppointmentFormData, Professional } from '../types';
-import { Calendar, Clock, CreditCard, User } from 'lucide-react';
+import { Calendar, Clock, CreditCard} from 'lucide-react';
 import { getProfessionals } from '../services/professionalService';
 import { getAvailability } from '../services/availabilityService';
 import { createAppointment } from '../services/appointmentService';

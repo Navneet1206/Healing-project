@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { Menu, X, User, LogOut, Calendar, Home, Info, Phone, BookOpen } from 'lucide-react';
@@ -15,7 +15,7 @@ const Navbar = () => {
   };
 
   // Check if a path is active
-  const isActive = (path) => {
+  const isActive = (path: string) => {
     if (path === '/' && location.pathname === '/') {
       return true;
     }

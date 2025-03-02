@@ -1,5 +1,5 @@
 import React from 'react';
-import { FileText, Shield, AlertTriangle, Clock } from 'lucide-react';
+import { FileText,  AlertTriangle } from 'lucide-react';
 
 const TermsOfService: React.FC = () => {
   return (
